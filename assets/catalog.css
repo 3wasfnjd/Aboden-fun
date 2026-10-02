@@ -1,0 +1,16 @@
+/* Approved catalog: full artwork is never mirrored or cropped. */
+.project-card{display:flex;flex-direction:column}
+.project-card>a{height:auto;flex:1}
+.project-cover{isolation:isolate;background:#101310}
+.project-cover::before{content:"";position:absolute;inset:-25px;background-image:var(--project-art);background-size:cover;background-position:center;filter:blur(24px);opacity:.32;z-index:-1}
+.project-cover img{object-fit:contain;position:relative}
+.project-category{z-index:1}
+.project-copy p{min-height:5.5em;line-height:1.9}
+.project-launch{padding:0 21px 21px}
+.project-launch>.button{width:100%;justify-content:space-between;min-height:44px}
+.detail-cover{max-height:600px;object-fit:contain;background:#11160e}
+.source-list{padding-inline-start:22px;line-height:2.5;font-size:13px;color:var(--muted)}
+.source-list a,.prose-page p a{text-decoration:underline;text-underline-offset:4px}
+.search-and-sort{min-width:0}
+.sort-label select{min-height:44px;font-size:16px}
+@media(max-width:760px){.library-toolbar{display:block}.search-and-sort{margin-top:12px;justify-content:flex-start}.search-box{flex-basis:100%;width:100%}.sort-label{margin-inline-start:auto}.project-copy p{min-height:0}.project-launch{padding:0 21px 20px}}
