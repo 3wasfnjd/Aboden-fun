@@ -1,0 +1,5 @@
+---
+import { renderLicenses } from '../lib/site.ts';
+const html = renderLicenses(import.meta.env.BASE_URL);
+---
+<Fragment set:html={html} />

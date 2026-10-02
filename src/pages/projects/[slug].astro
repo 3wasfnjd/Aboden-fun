@@ -1,0 +1,9 @@
+---
+import { loadCatalog } from '../../lib/catalog.ts';
+import { renderProject } from '../../lib/site.ts';
+export function getStaticPaths() {
+  return loadCatalog().map(project => ({ params: { slug: project.slug }, props: { project } }));
+}
+const html = renderProject(Astro.props.project, import.meta.env.BASE_URL);
+---
+<Fragment set:html={html} />
