@@ -1,66 +1,36 @@
 # عالم عبودين — Aboden Fun World
 
-Arabic RTL, mobile-first project directory. **Interface preview only: no repositories have been approved or added.**
+Arabic RTL project directory, published at https://3wasfnjd.github.io/Aboden-fun/.
 
-## Approval policy
+## Approved catalog
 
-Every project requires the owner's explicit approval before it enters `src/data/catalog.json` or the published website. The build fails unless each catalog entry has a matching approval in `src/data/approvals.json`. Both files remain empty. There is no runtime GitHub import, browser API token, analytics, invented project image or usage count. See `AGENTS.md`.
+The owner approved nine repositories through the annotated screenshot on 2026-10-02: Aboden-Hero, AR-Aboden, Motri, BIG-BATTLES, AR-Shooter, Boom, Dahrooj, hajwala, and SANDLINE. The portal does not list itself. Future projects still require explicit owner approval; there is no automatic account import. See `src/data/approvals.json` and `AGENTS.md`.
+
+Each project has a local genuine cover, an Arabic description, instructions, a details page, and a direct launch link. Search and category filters run locally. No API credentials, tracking, invented statistics or certified-device badges are shipped. Existing noindex preview mode is retained until public indexing is separately approved.
 
 ## Development
 
-Node >=22.12.0; CI uses Node 24.
+Node >=22.12.0 is required; CI uses Node 24.
 
 ```sh
 npm ci
-npm run dev
+python3 -m pip install 'Pillow==11.3.0'
+python3 scripts/prepare-approved-assets.py
 npm test
 npm run build
-npm run preview
+npm run dev
 ```
 
-On a checkout without a lockfile, run `npm install` once instead. The publication workflow commits the initial resolved lockfile and uses `npm ci` thereafter.
+The asset preparer downloads only approved, SHA-256-checked source art when a local cover is missing. Existing covers require no network. The browser never downloads source artwork from GitHub. Interface captures are committed locally and are not regenerated or fabricated. The BIG BATTLES poster is reconstructed from its original 2-column/4-row tiles in LTR image order; artwork is displayed without cropping or mirroring.
 
-`astro.config.mjs` uses `/Aboden-fun` as its base. Preserve this prefix for internal links and assets. The TypeScript renderer generates static HTML; only small search/menu scripts are shipped. Fonts come from the visitor's device.
+## Deployment
 
-Offline visual preview (not a substitute for the Astro build):
+GitHub Pages serves main/root. `.github/workflows/deploy.yml` prepares covers, tests and builds Astro, copies generated files using `scripts/sync-pages.mjs`, commits the generated result and explicitly requests a Pages build. It then checks the deployed revision, all nine project routes, launch destinations in the HTML, local image resources and the stylesheet. Do not edit generated root HTML/CSS/JS directly.
 
-```sh
-npm run preview:offline
-python3 -m http.server 4173 --directory .preview
-```
+Edit `src/`, `public/` and approved metadata. `.pages-files.json` tracks generated files and removes obsolete generated routes. Keep the `/Aboden-fun/` prefix in internal links. Unapproved projects fail validation and must not be put in runtime data or hidden cards.
 
-Open `http://localhost:4173/Aboden-fun/`.
+## Evidence and credits
 
-## Publishing
+`src/data/cover-sources.json` records original cover URLs and source hashes. `src/data/link-verification.json` records the initial HTTP checks of destination pages and entry resources. These checks are not an end-to-end gameplay or physical-device certification. AR support depends on the visitor's hardware and browser. Actual game servers and repositories remain independent and unchanged.
 
-The owner requested completion of interface publication on 2026-10-02. This does not approve any projects or search-engine indexing.
-
-The existing Pages setting serves **main / (root)**. Do not feed `.astro` files to Jekyll. `Publish approved interface` now runs on main pushes or manual dispatch and:
-
-1. Installs locked dependencies when available.
-2. Runs approval validation, tests and the Astro build.
-3. Copies only built `dist/` assets to the publishing root with `scripts/sync-pages.mjs`, removes obsolete generated files using `.pages-files.json`, and writes `.nojekyll`.
-4. Commits the generated site and dependency lock using the repository's workflow token.
-5. Explicitly requests a Pages build and checks the live build revision, homepage, CSS, JavaScript, icon and licenses page.
-
-No administration-token access or change to another repository is required. Ordinary non-force git pushes protect against overwriting concurrent edits. The workflow's generated commits do not recursively start another workflow run.
-
-Edit source files under `src/` or `public/`, not generated HTML/CSS/JS at the root. Keep preview badges, `noindex, nofollow` and the blocking robots file until the owner approves indexing. Do not report a live site until deployment and live-resource checks pass.
-
-The separate `Verify interface` workflow remains a build-only check.
-
-## Source structure
-
-- `src/templates/`: shared semantic HTML and homepage.
-- `src/lib/catalog.ts`: project schema and fail-closed approval validation.
-- `src/lib/site.ts`: escaped static HTML renderer.
-- `src/pages/`: Astro routes for the homepage, projects, licenses and 404.
-- `public/`: responsive CSS, favicon, robots and local search/menu JavaScript.
-- `tests/`: approval, security, route and normalization tests.
-- `scripts/sync-pages.mjs`: safe built-output publication; never edits project source.
-
-## Adding a project
-
-Inspect the actual repository and ask the owner whether to add that exact repository. Only after approval, record it in the ledger and add verified names, description, category, genuine local image, instructions, supported devices and tested live HTTPS URL. No working URL means no play/open button. Preserve required attribution and licenses. Run tests and build, then review mobile rendering before publication.
-
-This portal does not merge or move project source or replace game hosting/multiplayer servers.
+Original source credits are shown on `/licenses/`; the Motri and hajwala license notices are retained under `public/assets/credits/`. No game music is copied into the portal. System fonts are used, with no redistributed font files.

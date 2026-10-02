@@ -14,7 +14,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
+      - run: python3 -m pip install --quiet 'Pillow==11.3.0'
+      - run: python3 scripts/prepare-approved-assets.py
       - run: npm run build
       - uses: actions/upload-artifact@v4
         with:

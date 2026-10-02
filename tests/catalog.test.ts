@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {existsSync} from 'node:fs';
 import assert from 'node:assert/strict';
 import { loadCatalog, validateCatalog, type Project, type Approval } from '../src/lib/catalog.ts';
 import { escapeHtml, renderHome, renderProject, renderLicenses, renderNotFound } from '../src/lib/site.ts';
@@ -9,7 +10,8 @@ const fixture: Project = { slug:'test-fixture', repository:'3wasfnjd/test-fixtur
 const approval: Approval = { repository:fixture.repository, approvedAt:'2026-10-02', instruction:'SYNTHETIC UNIT TEST ONLY — NOT A REAL APPROVAL' };
 const validate = (p: Partial<Project> = {}, a: Approval[] = [approval]) => validateCatalog([{...fixture,...p}],a);
 
-test('current catalog contains zero projects',()=>assert.deepEqual(loadCatalog(),[]));
+const expected = ["3wasfnjd/Motri", "3wasfnjd/Dahrooj", "3wasfnjd/Boom", "3wasfnjd/Aboden-Hero", "3wasfnjd/BIG-BATTLES", "3wasfnjd/hajwala", "3wasfnjd/SANDLINE", "3wasfnjd/AR-Aboden", "3wasfnjd/AR-Shooter"];
+test('catalog contains exactly the nine owner-approved projects',()=>assert.deepEqual(loadCatalog().map(p=>p.repository).sort(), [...expected].sort()));
 test('empty approved catalog is valid',()=>assert.deepEqual(validateCatalog([],[]),[]));
 test('unapproved metadata fails closed',()=>assert.throws(()=>validate({},[]),/approval required/));
 test('approval must name the exact repository',()=>assert.throws(()=>validate({},[{...approval,repository:'3wasfnjd/another-fixture'}])));
@@ -36,13 +38,15 @@ test('homepage has base-aware CSS, JS and page links',()=>{
 test('root deployment can use the same renderer',()=>assert.ok(renderHome('/').includes('href="/site.css"')));
 test('no unapproved cards, routes or fixtures appear in homepage',()=>{
  const html=renderHome();
- assert.ok(!html.includes('data-project'));assert.ok(!html.includes('test-fixture'));
- assert.equal((html.match(/data-filter=/g)||[]).length,1);
+ assert.equal((html.match(/data-project /g)||[]).length,9);assert.ok(!html.includes('test-fixture'));
+ assert.equal((html.match(/data-filter=/g)||[]).length,3);
+ for(const project of loadCatalog()) assert.ok(html.includes('projects/'+project.slug+'/'));
+ assert.ok(!html.includes('projects/aboden-fun/'));
 });
 test('RTL and preview noindex are explicit',()=>{
  const html=renderHome();assert.ok(html.includes('lang="ar" dir="rtl"'));assert.ok(html.includes('noindex, nofollow'));
 });
-test('page content does not require JavaScript',()=>assert.ok(renderHome().includes('المكتبة تنتظر أول تجربة')));
+test('approved cards and launch links do not require JavaScript',()=>{const html=renderHome();for(const p of loadCatalog()){assert.ok(html.includes(p.title));assert.ok(html.includes(p.liveUrl!));}});
 test('no launch link without a verified URL',()=>{
  const html=renderProject(fixture);assert.ok(!html.includes('العب الآن'));assert.ok(html.includes('لا تتوفر نسخة تشغيل'));
 });
@@ -54,3 +58,5 @@ test('project text cannot inject HTML',()=>assert.ok(!renderProject({...fixture,
 test('secondary pages render without unresolved tokens',()=>{
  for(const html of [renderLicenses(),renderNotFound()]) {assert.ok(html.startsWith('<!doctype html>'));assert.ok(!html.includes('{{'));}
 });
+test('every catalog cover exists locally',()=>{for(const p of loadCatalog()) assert.ok(existsSync('public/'+p.cover),p.cover);});
+test('every approved project has an independently verified published URL',()=>{for(const p of loadCatalog()) assert.ok(p.liveUrl?.startsWith('https://3wasfnjd.github.io/'));});
