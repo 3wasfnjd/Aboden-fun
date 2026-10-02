@@ -20,8 +20,17 @@ def image(source, repository):
         raise ValueError('Source is not in the approved repository')
     with urlopen(Request(url, headers={'User-Agent': 'Aboden-cover-preparer'}), timeout=30) as response:
         data = response.read(12_000_001)
-    if len(data) > 12_000_000 or hashlib.sha256(data).hexdigest() != source['sha256']:
+    if len(data) > 12_000_000:
+        raise ValueError('Original artwork exceeds the size limit')
+    # Accept a reviewed SHA-256 or the exact Git blob returned by the source repository.
+    if not source.get('sha256') and not source.get('gitBlobSha'):
+        raise ValueError('Original artwork requires a reviewed content hash')
+    if source.get('sha256') and hashlib.sha256(data).hexdigest() != source['sha256']:
         raise ValueError('Original artwork changed; review it before publication')
+    if source.get('gitBlobSha'):
+        header = f'blob {len(data)}\0'.encode('ascii')
+        if hashlib.sha1(header + data).hexdigest() != source['gitBlobSha']:
+            raise ValueError('Original Git image blob changed; review it before publication')
     with Image.open(io.BytesIO(data)) as original:
         return ImageOps.exif_transpose(original).convert('RGB')
 
