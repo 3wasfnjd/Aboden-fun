@@ -1,0 +1,166 @@
+name: Apply owner-approved Dahrooj poster
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/apply-dahrooj-poster.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+concurrency:
+  group: publish-built-pages
+  cancel-in-progress: false
+jobs:
+  replace-poster:
+    if: github.repository == '3wasfnjd/Aboden-fun'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install existing build tools
+        run: |
+          npm ci --no-audit --no-fund
+          python3 -m pip install --quiet 'Pillow==11.3.0'
+      - name: Install the exact attached poster and update only its portal metadata
+        run: |
+          python3 - <<'PY'
+          import hashlib, io, json
+          from pathlib import Path
+          from urllib.request import urlopen
+          from PIL import Image
+
+          digest = '80d2b29c8fa308bd135ac7897a4edda0007fb12ccdf3484967a85f9939f61432'
+          cover = 'assets/projects/dahrooj-poster-80d2b29c.jpeg'
+          target = Path('public', cover)
+          if target.exists():
+              data = target.read_bytes()
+          else:
+              source = 'https://d2ol7oe51mr4n9.cloudfront.net/user_3J1LphlxDrG3aJ1b9EowRTwQ7gC/4401d182-12e1-4f39-9776-eba6724b07bf.jpg'
+              with urlopen(source, timeout=30) as response:
+                  data = response.read(2_000_001)
+          assert len(data) == 593236, 'Attached image byte size must match exactly'
+          assert hashlib.sha256(data).hexdigest() == digest, 'Attachment checksum mismatch; do not substitute another image'
+          with Image.open(io.BytesIO(data)) as im:
+              assert im.format == 'JPEG' and im.size == (1122, 1402)
+              im.verify()
+          target.parent.mkdir(parents=True, exist_ok=True)
+          target.write_bytes(data)
+
+          def write_records(path, records):
+              Path(path).write_text('[\n' + ',\n'.join(json.dumps(r, ensure_ascii=False, separators=(',', ':')) for r in records) + '\n]\n', encoding='utf-8')
+          catalog_path = 'src/data/catalog.json'
+          projects = json.loads(Path(catalog_path).read_text())
+          approved = json.loads(Path('src/data/approvals.json').read_text())
+          assert len(projects) == 8
+          assert any(a['repository'] == '3wasfnjd/Dahrooj' for a in approved)
+          matches = [p for p in projects if p['repository'] == '3wasfnjd/Dahrooj']
+          assert len(matches) == 1 and matches[0]['slug'] == 'dahrooj'
+          matches[0]['cover'] = cover
+          matches[0]['coverAlt'] = 'بوستر دحروج المعتمد: شخصية الفرو بفيونكة حمراء، والمرمى والسلة والعلب، وأنماط الكرة الخمسة'
+          write_records(catalog_path, projects)
+          records_path = 'src/data/cover-sources.json'
+          records = json.loads(Path(records_path).read_text())
+          record = next(r for r in records if r['slug'] == 'dahrooj')
+          record.clear()
+          record.update(slug='dahrooj', repository='3wasfnjd/Dahrooj', kind='owner-uploaded-poster', sources=[], sha256=digest, sourceFilename='074E9DC1-BAAC-4DF1-9681-28DA210356C9.jpeg', width=1122, height=1402, approvalInstruction='استبدلها في عالم عبودين', note='The exact poster attached and explicitly selected by the owner. Promotional artwork, not a gameplay screenshot. Original JPEG bytes retained without cropping, mirroring, resizing or recompression. Served locally by the portal.')
+          write_records(records_path, records)
+          Path('public/assets/projects/dahrooj.webp').unlink(missing_ok=True)
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if new in text:
+                  return
+              assert text.count(old) == 1, 'Expected source changed: ' + path
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_once('scripts/prepare-approved-assets.py',
+              "if output.parent != allowed or output.suffix != '.webp':",
+              "if output.parent != allowed or (output.suffix != '.webp' and not (record['kind'] == 'owner-uploaded-poster' and output.suffix == '.jpeg')):")
+          replace_once('scripts/prepare-approved-assets.py',
+              '    if output.exists():\n',
+              "    if record['kind'] == 'owner-uploaded-poster':\n        if not output.exists() or not record.get('sha256') or not record.get('approvalInstruction'):\n            raise ValueError('The explicitly approved poster must be committed locally')\n        if hashlib.sha256(output.read_bytes()).hexdigest() != record['sha256']:\n            raise ValueError('Owner-approved poster bytes changed')\n    if output.exists():\n")
+          replace_once('scripts/verify-published.py',
+              "    assert cover[:4] == b'RIFF' and cover[8:12] == b'WEBP', project['slug']",
+              "    if project['slug'] == 'dahrooj':\n        assert project['cover'] == 'assets/projects/dahrooj-poster-80d2b29c.jpeg'\n        assert cover.startswith(bytes.fromhex('ffd8ff'))\n        assert hashlib.sha256(cover).hexdigest() == '80d2b29c8fa308bd135ac7897a4edda0007fb12ccdf3484967a85f9939f61432'\n        assert project['cover'] in home and project['cover'] in detail\n        assert 'assets/projects/dahrooj.webp' not in home + detail\n        print('VERIFIED exact owner-attached Dahrooj poster, homepage and detail page')\n    else:\n        assert cover[:4] == b'RIFF' and cover[8:12] == b'WEBP', project['slug']")
+          replace_once('src/lib/site.ts',
+              'الصور من ملفات المشاريع الأصلية، أو لقطات لواجهاتها الأصلية المعروضة محليًا. جرى تصغير الصور وضغطها للعرض؛ لم تُخترع مشاهد لعب.',
+              'صور المشاريع من ملفاتها أو لقطات واجهاتها الأصلية، باستثناء صورة دحروج: بوستر ترويجي أرفقه مالك الموقع واعتمده للعرض، وليس لقطة من اللعب. حُفظ بوستر دحروج كما أُرفق دون قص أو عكس أو إعادة ضغط. جرى تصغير بقية الصور وضغطها للعرض.')
+          policy_note = '\n- Owner-approved Dahrooj artwork exception: the owner attached 074E9DC1-BAAC-4DF1-9681-28DA210356C9.jpeg and explicitly requested replacing its portal cover. Use public/assets/projects/dahrooj-poster-80d2b29c.jpeg with the SHA-256 recorded in cover-sources.json. This is approved promotional artwork, not an in-game screenshot. Do not regenerate or replace it with another poster; retain the full composition. This does not authorize game-repository changes.\n'
+          if policy_note not in Path('AGENTS.md').read_text():
+              with Path('AGENTS.md').open('a', encoding='utf-8') as f:
+                  f.write(policy_note)
+          readme_note = '\n## Owner-selected Dahrooj poster\n\nDahrooj now uses the exact JPEG poster attached and approved by the owner, rather than the previous interface capture. The full image is displayed with the existing contain styling on its card and detail page. Its original 1122 x 1402 pixels and SHA-256 are retained; it is promotional artwork, not a gameplay screenshot. The image is committed locally and does not require an external image host when browsing or rebuilding. The original Dahrooj repository is unchanged.\n'
+          if readme_note not in Path('README.md').read_text():
+              with Path('README.md').open('a', encoding='utf-8') as f:
+                  f.write(readme_note)
+          Path('tests/dahrooj-poster.test.ts').write_text('''import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import { readFileSync, existsSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          import { loadCatalog } from '../src/lib/catalog.ts';
+          import { renderHome, renderProject, renderLicenses } from '../src/lib/site.ts';
+          test('Dahrooj uses exactly the owner-attached poster on both portal views', () => {
+            const p = loadCatalog().find(p => p.slug === 'dahrooj')!;
+            assert.equal(p.cover, 'assets/projects/dahrooj-poster-80d2b29c.jpeg');
+            const bytes = readFileSync('public/' + p.cover);
+            assert.equal(bytes.length, 593236);
+            assert.equal(createHash('sha256').update(bytes).digest('hex'), '80d2b29c8fa308bd135ac7897a4edda0007fb12ccdf3484967a85f9939f61432');
+            for (const html of [renderHome(), renderProject(p)]) {
+              assert.ok(html.includes(p.cover));
+              assert.ok(!html.includes('assets/projects/dahrooj.webp'));
+            }
+            assert.equal(p.liveUrl, 'https://3wasfnjd.github.io/Dahrooj/');
+            assert.equal(loadCatalog().length, 8);
+            assert.ok(!existsSync('public/assets/projects/dahrooj.webp'));
+          });
+          test('Poster provenance distinguishes promotional art from a screenshot', () => {
+            const records = JSON.parse(readFileSync('src/data/cover-sources.json', 'utf8'));
+            const source = records.find((r: any) => r.slug === 'dahrooj');
+            assert.equal(source.kind, 'owner-uploaded-poster');
+            assert.equal(source.approvalInstruction, 'استبدلها في عالم عبودين');
+            assert.ok(renderLicenses().includes('بوستر ترويجي'));
+            assert.ok(readFileSync('public/assets/catalog.css', 'utf8').includes('object-fit:contain'));
+          });
+          ''', encoding='utf-8')
+          print('READY exact owner image:', cover, digest, '1122x1402', len(data), 'bytes')
+          PY
+      - name: Validate existing approvals and build the updated portal
+        run: |
+          python3 scripts/prepare-approved-assets.py
+          npm run build
+          node scripts/sync-pages.mjs
+      - name: Commit tested portal changes and original image
+        run: |
+          git add -- src/data/catalog.json src/data/cover-sources.json src/lib/site.ts scripts/prepare-approved-assets.py scripts/verify-published.py public/assets/projects tests/dahrooj-poster.test.ts AGENTS.md README.md
+          git diff --cached --stat
+          if ! git diff --cached --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'Replace Dahrooj portal cover with the exact owner-approved poster'
+            git push origin HEAD:main
+          fi
+      - name: Publish and verify the deployed original image
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in 1 2 3 4; do
+            if gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds"; then break; fi
+            sleep 10
+          done
+          for attempt in $(seq 1 30); do
+            if curl --max-time 20 -fsS "https://3wasfnjd.github.io/Aboden-fun/build-info.json?revision=${GITHUB_SHA}" -o /tmp/live-build.json && jq -e --arg sha "$GITHUB_SHA" '.source == $sha' /tmp/live-build.json >/dev/null; then break; fi
+            sleep 5
+          done
+          python3 scripts/verify-published.py
+          echo 'Published and verified the exact attached Dahrooj poster on https://3wasfnjd.github.io/Aboden-fun/ and its detail page.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: approved-dahrooj-poster-preview
+          path: dist
+          retention-days: 3
