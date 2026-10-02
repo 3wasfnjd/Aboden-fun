@@ -17,3 +17,5 @@
 - Keep Arabic RTL/mobile-first design. Respect browser zoom and reduced-motion preferences.
 - Run `npm test` and `npm run build` before release. Do not bypass approval validation.
 - The portal itself is not a project card. Future repositories still require explicit approval.
+
+- Owner-approved Dahrooj artwork exception: the owner attached 074E9DC1-BAAC-4DF1-9681-28DA210356C9.jpeg and explicitly requested replacing its portal cover. Use public/assets/projects/dahrooj-poster-80d2b29c.jpeg with the SHA-256 recorded in cover-sources.json. This is approved promotional artwork, not an in-game screenshot. Do not regenerate or replace it with another poster; retain the full composition. This does not authorize game-repository changes.

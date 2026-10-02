@@ -34,3 +34,7 @@ Edit `src/`, `public/` and approved metadata. `.pages-files.json` tracks generat
 `src/data/cover-sources.json` records original cover URLs and source hashes. `src/data/link-verification.json` records the initial historical HTTP checks of destination pages and entry resources; it is not an approval list. These checks are not an end-to-end gameplay or physical-device certification. AR support depends on the visitor's hardware and browser. Actual game servers and repositories remain independent and unchanged.
 
 Original source credits are shown on `/licenses/`; the Motri and hajwala license notices are retained under `public/assets/credits/`. No game music is copied into the portal. System fonts are used, with no redistributed font files.
+
+## Owner-selected Dahrooj poster
+
+Dahrooj now uses the exact JPEG poster attached and approved by the owner, rather than the previous interface capture. The full image is displayed with the existing contain styling on its card and detail page. Its original 1122 x 1402 pixels and SHA-256 are retained; it is promotional artwork, not a gameplay screenshot. The image is committed locally and does not require an external image host when browsing or rebuilding. The original Dahrooj repository is unchanged.

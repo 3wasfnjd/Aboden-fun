@@ -41,8 +41,13 @@ for record in load('cover-sources.json'):
         raise ValueError('Artwork requires exact project approval')
     output = (ROOT / 'public' / project['cover']).resolve()
     allowed = (ROOT / 'public/assets/projects').resolve()
-    if output.parent != allowed or output.suffix != '.webp':
+    if output.parent != allowed or (output.suffix != '.webp' and not (record['kind'] == 'owner-uploaded-poster' and output.suffix == '.jpeg')):
         raise ValueError('Invalid cover output path')
+    if record['kind'] == 'owner-uploaded-poster':
+        if not output.exists() or not record.get('sha256') or not record.get('approvalInstruction'):
+            raise ValueError('The explicitly approved poster must be committed locally')
+        if hashlib.sha256(output.read_bytes()).hexdigest() != record['sha256']:
+            raise ValueError('Owner-approved poster bytes changed')
     if output.exists():
         with Image.open(output) as existing:
             existing.verify()

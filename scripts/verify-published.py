@@ -51,7 +51,15 @@ for project in projects:
     detail = get('projects/' + project['slug'] + '/').decode()
     assert project['liveUrl'] in detail and project['title'] in detail
     cover = get(project['cover'])
-    assert cover[:4] == b'RIFF' and cover[8:12] == b'WEBP', project['slug']
+    if project['slug'] == 'dahrooj':
+        assert project['cover'] == 'assets/projects/dahrooj-poster-80d2b29c.jpeg'
+        assert cover.startswith(bytes.fromhex('ffd8ff'))
+        assert hashlib.sha256(cover).hexdigest() == '80d2b29c8fa308bd135ac7897a4edda0007fb12ccdf3484967a85f9939f61432'
+        assert project['cover'] in home and project['cover'] in detail
+        assert 'assets/projects/dahrooj.webp' not in home + detail
+        print('VERIFIED exact owner-attached Dahrooj poster, homepage and detail page')
+    else:
+        assert cover[:4] == b'RIFF' and cover[8:12] == b'WEBP', project['slug']
     if project['slug'] == 'hajwala':
         assert project['cover'] == 'assets/projects/hajwala-shas.webp'
         assert project['cover'] in home and project['cover'] in detail
