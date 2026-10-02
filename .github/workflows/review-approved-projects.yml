@@ -1,0 +1,72 @@
+name: Review approved project sources
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/review-approved-projects.yml']
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect source evidence and original artwork
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import concurrent.futures, json, os, re, urllib.request, pathlib, shutil
+          out=pathlib.Path('/tmp/project-review'); out.mkdir()
+          repoout=out/'portal'; repoout.mkdir()
+          for name in ['src','public','scripts','tests','.github','package.json','package-lock.json','astro.config.mjs','tsconfig.json','AGENTS.md','README.md']:
+              p=pathlib.Path(name)
+              if p.is_dir(): shutil.copytree(p,repoout/name)
+              elif p.exists(): shutil.copy2(p,repoout/name)
+          names=['Aboden-Hero','AR-Aboden','Motri','BIG-BATTLES','AR-Shooter','Boom','Dahrooj','hajwala','SANDLINE']
+          def get(url,api=False):
+              headers={'User-Agent':'Aboden-approved-project-review'}
+              if api: headers['Authorization']='Bearer '+os.environ['GH_TOKEN']
+              with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=25) as r: return r.read()
+          def inspect(name):
+              dest=out/name; dest.mkdir()
+              api='https://api.github.com/repos/3wasfnjd/'+name
+              meta=json.loads(get(api,True)); (dest/'metadata.json').write_text(json.dumps(meta,ensure_ascii=False,indent=2))
+              tree=json.loads(get(api+'/git/trees/'+meta['default_branch']+'?recursive=1',True))
+              (dest/'tree.json').write_text(json.dumps(tree,indent=2))
+              files=[x for x in tree['tree'] if x['type']=='blob']
+              raw='https://raw.githubusercontent.com/3wasfnjd/'+name+'/'+tree['sha']+'/'
+              # Raw paths require a commit/branch ref rather than a tree SHA.
+              raw='https://raw.githubusercontent.com/3wasfnjd/'+name+'/'+meta['default_branch']+'/'
+              texts=[x for x in files if (re.search(r'(^|/)(readme[^/]*|index\.html|package\.json|wrangler\.(jsonc?|toml)|manifest\.json|license[^/]*|credits[^/]*)$',x['path'],re.I) or re.search(r'(control|instruction|loading|menu)',x['path'],re.I)) and x.get('size',0)<220000 and not re.search(r'node_modules|package-lock|\.glb$|\.png$|\.webp$|\.jpe?g$',x['path'],re.I)]
+              for x in texts[:35]:
+                  p=dest/'text'/x['path']; p.parent.mkdir(parents=True,exist_ok=True)
+                  try: p.write_bytes(get(raw+urllib.parse.quote(x['path'])))
+                  except Exception as e: print(name,x['path'],str(e))
+              imgs=[x for x in files if re.search(r'\.(png|webp|jpe?g|avif)$',x['path'],re.I) and x.get('size',0)<9000000]
+              def score(x):
+                  path=x['path'].lower(); s=0
+                  for term,weight in [('poster',100),('cover',85),('splash',80),('loading',75),('banner',65),('hero',60),('menu',55),('preview',50),('background',45),('thumbnail',40),('logo',30),('screen',25)]:
+                      if term in path:s+=weight
+                  if any(t in path for t in ['texture','node_modules','diffuse','normal','roughness','metalness']):s-=130
+                  return s
+              imgs.sort(key=score,reverse=True)
+              selected=[x for x in imgs if score(x)>0][:5] or imgs[:2]
+              manifest=[]
+              for i,x in enumerate(selected):
+                  target=dest/('cover-'+str(i)+pathlib.Path(x['path']).suffix)
+                  try:
+                      target.write_bytes(get(raw+urllib.parse.quote(x['path'])))
+                      manifest.append({'file':target.name,'path':x['path'],'url':raw+urllib.parse.quote(x['path']),'size':x['size']})
+                  except Exception as e: print(name,x['path'],str(e))
+              (dest/'covers.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2))
+              print(json.dumps({'repository':name,'homepage':meta.get('homepage'),'pages':meta.get('has_pages'),'images':[x['path'] for x in imgs[:15]]}))
+          with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
+              for result in pool.map(inspect,names): pass
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: approved-project-review
+          path: /tmp/project-review
+          retention-days: 3
