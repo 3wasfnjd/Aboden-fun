@@ -1,41 +1,75 @@
 name: Publish approved interface
-# No automatic publication: the owner must approve the preview and public launch.
+# The owner requested completion of publication. Project approvals remain separate.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      approval:
-        description: 'After owner approval, type PUBLISH to deploy this interface'
-        required: true
-        type: string
 permissions:
-  contents: read
+  contents: write
   pages: write
-  id-token: write
 concurrency:
-  group: pages
+  group: publish-built-pages
   cancel-in-progress: false
 jobs:
-  build:
-    if: inputs.approval == 'PUBLISH'
+  publish:
+    if: github.repository == '3wasfnjd/Aboden-fun'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: npm install --no-audit --no-fund
-      - run: npm run build
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+      - name: Validate approvals, run tests and build Astro
+        run: npm run build
+      - name: Prepare built Pages files without Jekyll
+        run: node scripts/sync-pages.mjs
+      - name: Commit generated site and dependency lock
+        run: |
+          git add -- package-lock.json
+          if ! git diff --cached --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'Publish tested Astro output for GitHub Pages'
+            git push origin HEAD:main
+          fi
+      - name: Request Pages publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in 1 2 3 4; do
+            if gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds"; then
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
+      - name: Verify the live revision and resources
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          site=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq '.html_url')
+          site="${site%/}/"
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl --connect-timeout 10 --max-time 20 -fsS "${site}build-info.json?revision=${GITHUB_SHA}" -o /tmp/live-build.json && jq -e --arg sha "$GITHUB_SHA" '.source == $sha' /tmp/live-build.json >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ready" = 1
+          for resource in '' site.css app.js favicon.svg licenses/; do
+            curl --connect-timeout 10 --max-time 20 --retry 3 --retry-all-errors -fsS "${site}${resource}?revision=${GITHUB_SHA}" -o /tmp/live-resource
+            test -s /tmp/live-resource
+            echo "VERIFIED ${site}${resource}"
+          done
+          echo "LIVE_URL=$site"
+          echo "Verified live site: $site" >> "$GITHUB_STEP_SUMMARY"
